@@ -279,11 +279,18 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 #### B. REST API
+
 ```bash
-python api/main.py
+# Start FastAPI backend with Uvicorn
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+# Output:
+# INFO:     Uvicorn running on http://0.0.0.0:8000
+# INFO:     Application startup complete
 ```
 
-Access API documentation: `http://localhost:8000/docs`
+Access API documentation: `http://localhost:8000/docs` (Swagger UI)  
+Alternative docs: `http://localhost:8000/redoc` (ReDoc)
 
 #### C. Programmatic Usage
 ```python
@@ -592,8 +599,8 @@ npm run build
 npm start
 # Runs on http://localhost:3000
 
-# 3. Start API server
-python api/main.py
+# 3. Start API server with Uvicorn
+uvicorn api.main:app --host 0.0.0.0 --port 8000
 # Runs on http://localhost:8000
 
 # 4. Query predictions via API
@@ -664,13 +671,16 @@ npm run dev -- --port 3001
 Error: Failed to fetch from API endpoint
 ```
 **Solution:**
-- Check API is running: `python api/main.py`
+- Start API server with Uvicorn:
+  ```bash
+  uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+  ```
 - Verify API endpoint in `frontend/.env.local`:
   ```
   NEXT_PUBLIC_API_URL=http://localhost:8000
   ```
-- Ensure API is accessible: `curl http://localhost:8000/health`
-- Check CORS settings in API config
+- Test API is accessible: `curl http://localhost:8000/docs`
+- Check CORS settings in `api/main.py` if needed
 
 ### Issue: "npm: command not found"
 ```
@@ -686,9 +696,12 @@ Error: npm is not installed
 Error: POST /predict HTTP/1.1" 404
 ```
 **Solution:**
-- Verify API is running: `python api/main.py`
+- Start API server with Uvicorn:
+  ```bash
+  uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+  ```
 - Check endpoint path: `/predict` (not `/api/predict`)
-- View docs: http://localhost:8000/docs
+- View interactive docs: http://localhost:8000/docs (Swagger UI)
 
 ### Issue: Features have incorrect dimensions
 ```

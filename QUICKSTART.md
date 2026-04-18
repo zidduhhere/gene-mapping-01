@@ -9,9 +9,10 @@ Get up and running with PharmaAI Predictor in minutes. This guide covers essenti
 1. [Prerequisites](#prerequisites)
 2. [Installation (5 minutes)](#installation-5-minutes)
 3. [Running the Model](#running-the-model)
-4. [Running the Frontend](#running-the-frontend)
-5. [Making Predictions](#making-predictions)
-6. [Troubleshooting](#troubleshooting)
+4. [Running the Backend API](#running-the-backend-api)
+5. [Running the Frontend](#running-the-frontend)
+6. [Making Predictions](#making-predictions)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -153,6 +154,113 @@ python explain.py --model-dir results/PharmaAI_Transformer_2025/TabTransformer
 
 ---
 
+## Running the Backend API
+
+The FastAPI backend provides REST endpoints for predictions, explanations, and drug information. Run it before using the frontend.
+
+### Start API Server (Uvicorn)
+
+```bash
+# Make sure virtual environment is activated
+source venv/bin/activate  # macOS/Linux
+# venv\Scripts\activate   # Windows
+
+# Start FastAPI server
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+# Output:
+# INFO:     Uvicorn running on http://0.0.0.0:8000
+# INFO:     Application startup complete
+# Uvicorn: Started server process [PID]
+```
+
+**Server is ready when you see:** ✓ "Application startup complete"
+
+### Verify API is Running
+
+```bash
+# In a new terminal, test the API
+curl http://localhost:8000/docs
+
+# Or open in browser:
+# http://localhost:8000/docs        (Interactive Swagger UI)
+# http://localhost:8000/redoc       (ReDoc documentation)
+# http://localhost:8000/openapi.json (OpenAPI schema)
+```
+
+### API Endpoints
+
+**Main Endpoints:**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/predict` | `POST` | Predict drug response (IC50) |
+| `/explain` | `POST` | Get SHAP explanations for prediction |
+| `/drugs` | `GET` | List available drugs |
+| `/health` | `GET` | Check API health status |
+
+**Example: Make a Prediction**
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cell_line": "A375",
+    "drug": "Erlotinib",
+    "gene_expression": [0.5, 0.3, ...],
+    "drug_fingerprint": [1, 0, 1, ...]
+  }'
+
+# Response:
+# {
+#   "prediction": 4.2,
+#   "confidence": 0.87,
+#   "model": "TabTransformer"
+# }
+```
+
+### Production Deployment
+
+```bash
+# Start with Gunicorn (production-grade WSGI server)
+gunicorn api.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+
+# Or use uvicorn with multiple workers
+uvicorn api.main:app --workers 4 --host 0.0.0.0 --port 8000
+
+# Access at http://localhost:8000
+```
+
+### Custom Configuration
+
+**Change API Port:**
+
+```bash
+# Run on different port (if 8000 is busy)
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8001
+
+# Update frontend .env.local:
+# NEXT_PUBLIC_API_URL=http://localhost:8001
+```
+
+**Disable Auto-Reload (Production):**
+
+```bash
+# Remove --reload flag for production
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+**Set Log Level:**
+
+```bash
+# Reduce verbosity
+uvicorn api.main:app --reload --log-level warning
+
+# Options: critical, error, warning, info, debug
+```
+
+---
+
 ## Running the Frontend
 
 ### Start Development Server
@@ -214,18 +322,24 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ### Scenario 1: Start Fresh (5-10 minutes)
 
 ```bash
-# 1. Setup (if not done)
+# TERMINAL 1: Train the model
 python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 
-# 2. Train toy model (5 min)
+# Train toy model (5 min)
 python train_pharmaai.py --toy
 
-# 3. Generate explanations (5 min)
+# Generate explanations (5 min)
 python explain.py --model-dir results/PharmaAI_TOY_test/TabTransformer
 
-# 4. Start frontend
+# TERMINAL 2: Start backend API
+source venv/bin/activate  # Activate same venv
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+# Wait for: "Application startup complete"
+
+# TERMINAL 3: Start frontend
 cd frontend
 npm install  # first time only
 npm run dev
@@ -241,33 +355,32 @@ npm run dev
 If you already have a trained model:
 
 ```bash
-# 1. Activate environment
+# TERMINAL 1: Start backend API
 source venv/bin/activate
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
-# 2. Start frontend
+# TERMINAL 2: Start frontend
 cd frontend
 npm run dev
 
-# 3. Open browser
-# http://localhost:3000
-
-# 4. Frontend will load your trained model automatically
+# Open browser: http://localhost:3000
+# Frontend will load your trained model automatically
 ```
 
 ### Scenario 3: Full Pipeline with API (15 minutes)
 
 ```bash
-# Terminal 1: Start training (if needed)
+# TERMINAL 1: Start training (if needed)
 source venv/bin/activate
 python train_pharmaai.py --toy
 
-# Terminal 2: Start API server (after training completes)
+# TERMINAL 2: Start API server (after training completes)
 source venv/bin/activate
-python api/main.py
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 # Runs on http://localhost:8000
 # API docs: http://localhost:8000/docs
 
-# Terminal 3: Start frontend
+# TERMINAL 3: Start frontend
 cd frontend
 npm run dev
 # Runs on http://localhost:3000
@@ -343,16 +456,18 @@ python train_pharmaai.py --toy                    # Quick test
 python train_pharmaai.py --dataset GDSC2          # Full training
 python explain.py --model-dir <path>              # Generate explanations
 
+# Backend API (Uvicorn)
+uvicorn api.main:app --reload --port 8000        # Development
+uvicorn api.main:app --host 0.0.0.0 --port 8000  # Production
+
 # Frontend
 cd frontend && npm install && npm run dev         # Start dev server
 cd frontend && npm run build && npm start         # Production build
 
-# API
-python api/main.py                               # Start API server
-
 # Testing
 curl http://localhost:3000                       # Test frontend
-curl http://localhost:8000/health                # Test API
+curl http://localhost:8000/docs                  # Test API (Swagger)
+curl http://localhost:8000/health                # Test API health
 ```
 
 ---
@@ -378,10 +493,10 @@ PharmaAI-Predictor/
 │   ├── public/
 │   └── .env.local                    # (create: API endpoint)
 │
-├── api/                              # FastAPI backend (optional)
-│   ├── main.py
-│   ├── routes/
-│   └── services/
+├── api/                              # FastAPI backend
+│   ├── main.py                       # FastAPI app entry point
+│   ├── routes/                       # API endpoints (predict, explain, drugs, auth)
+│   └── services/                     # Business logic (drug, pdf generation)
 │
 ├── models/                           # Model implementations
 │   └── TabTransformer/
@@ -447,12 +562,55 @@ python train_pharmaai.py --toy  # Smaller dataset
 cat frontend/.env.local
 # Should have: NEXT_PUBLIC_API_URL=http://localhost:8000
 
-# 2. Start API server:
-python api/main.py
+# 2. Start API server with uvicorn:
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+# Wait for: "Application startup complete"
 
 # 3. Check API health:
-curl http://localhost:8000/health
-# Should return: {"status": "healthy"}
+curl http://localhost:8000/docs
+# Should open interactive Swagger UI in browser
+```
+
+### Issue: "Uvicorn port already in use" (Port 8000)
+
+**Solution:**
+```bash
+# Use different port:
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8001
+
+# Update frontend .env.local:
+# NEXT_PUBLIC_API_URL=http://localhost:8001
+```
+
+### Issue: API crashes on startup
+
+**Solution:**
+```bash
+# Check for missing dependencies
+pip install --upgrade uvicorn fastapi
+
+# Run with debug output
+uvicorn api.main:app --reload --log-level debug
+
+# Check specific error in output and install missing packages
+```
+
+### Issue: Frontend can't reach backend API
+
+**Solution:**
+```bash
+# Make sure API is running in a separate terminal:
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+# Verify API is listening:
+curl -v http://localhost:8000/docs
+
+# Check frontend .env.local has correct API URL:
+cat frontend/.env.local
+
+# If URL is wrong, update it and restart frontend:
+# NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 ### Issue: "npm: command not found"
@@ -485,7 +643,10 @@ After getting everything running:
 - **Full Documentation**: See `README.md`
 - **Architecture Details**: See `ARCHITECTURE.md`
 - **Flow Diagrams**: See `FLOW_DIAGRAM.md`
-- **API Documentation**: Run `python api/main.py` and visit `http://localhost:8000/docs`
+- **API Documentation**: Run backend and visit `http://localhost:8000/docs` (Swagger UI)
+  ```bash
+  uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+  ```
 - **Issues**: Create GitHub issue with error message and reproduction steps
 
 ---
